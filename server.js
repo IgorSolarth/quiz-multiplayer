@@ -62,8 +62,31 @@ const state = {
     answers: {},
     scoreboard: {},
     revealData: null,
+    questionTimeout: null,
+    nextQuestionTimeout: null,
   }
 };
+
+function startLobby() {
+  clearGameTimers();
+  state.game.status = 'lobby';
+  state.game.currentQuestionIndex = -1;
+  state.game.questionStartedAt = null;
+  resetRoundAnswers();
+  resetGameScores();
+  emitState();
+}
+
+function clearGameTimers() {
+  if (state.game.questionTimeout) {
+    clearTimeout(state.game.questionTimeout);
+    state.game.questionTimeout = null;
+  }
+  if (state.game.nextQuestionTimeout) {
+    clearTimeout(state.game.nextQuestionTimeout);
+    state.game.nextQuestionTimeout = null;
+  }
+}
 
 function getLocalIp() {
   const interfaces = os.networkInterfaces();
@@ -157,6 +180,8 @@ function startQuestion(index) {
   const question = state.quiz.questions[index];
   if (!question) return false;
 
+  clearGameTimers();
+
   state.game.status = 'question';
   state.game.currentQuestionIndex = index;
   state.game.questionStartedAt = Date.now();
@@ -174,6 +199,23 @@ function startQuestion(index) {
   });
 
   emitState();
+
+  // Quando acabar o tempo, revela automaticamente
+  state.game.questionTimeout = setTimeout(() => {
+    revealAnswer();
+
+    // Depois de alguns segundos, vai para a próxima
+    state.game.nextQuestionTimeout = setTimeout(() => {
+      const nextIndex = state.game.currentQuestionIndex + 1;
+
+      if (nextIndex < state.quiz.questions.length) {
+        startQuestion(nextIndex);
+      } else {
+        finishGame();
+      }
+    }, 5000); // 5 segundos mostrando a resposta/ranking
+  }, question.timeLimit * 1000);
+
   return true;
 }
 
@@ -209,6 +251,7 @@ function revealAnswer() {
 }
 
 function finishGame() {
+  clearGameTimers();
   state.game.status = 'finished';
   state.game.revealData = {
     ranking: buildRanking(),
@@ -296,6 +339,7 @@ app.post('/api/admin/game/finish', adminAuth, (req, res) => {
 });
 
 app.post('/api/admin/game/reset', adminAuth, (req, res) => {
+  clearGameTimers();
   state.game.status = 'idle';
   state.game.currentQuestionIndex = -1;
   state.game.questionStartedAt = null;
@@ -697,6 +741,9 @@ app.get('/admin', (req, res) => {
   <button class="warn" id="revealBtn">Revelar resposta</button>
   <button class="danger" id="finishBtn">Finalizar</button>
   <button class="secondary" id="resetBtn">Resetar</button>
+  <div style="text-align:right; margin-top:50px; font-size:15px; opacity:0.8;">
+  Desenvolvido por <strong>Igor Solarth</strong>
+</div>
 </div>
             </div>
             <div class="row" id="questionButtons"></div>
