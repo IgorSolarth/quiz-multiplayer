@@ -221,7 +221,7 @@ function scoreAnswer(question, elapsedMs) {
   const maxMs = question.timeLimit * 1000;
   const safeElapsed = Math.max(0, Math.min(elapsedMs, maxMs));
   const speedFactor = 1 - safeElapsed / maxMs;
-  return Math.max(300, Math.round(300 + speedFactor * 700));
+  return Math.max(100, Math.round(100 + speedFactor * 400));
 }
 
 app.get('/', (req, res) => res.redirect('/play'));
@@ -307,8 +307,9 @@ app.post('/api/admin/game/reset', adminAuth, (req, res) => {
 });
 
 app.get('/api/admin/qrcode', adminAuth, async (req, res) => {
-  const ip = getLocalIp();
-  const playUrl = `http://${ip}:${PORT}/play`;
+  const protocol = req.get('x-forwarded-proto') || req.protocol;
+  const host = req.get('host');
+  const playUrl = `${protocol}://${host}/play`;
   const dataUrl = await QRCode.toDataURL(playUrl, { width: 320, margin: 1 });
   res.json({ playUrl, dataUrl });
 });
@@ -691,11 +692,12 @@ app.get('/admin', (req, res) => {
             <div class="between">
               <h2>Controle da partida</h2>
               <div class="row">
-                <button class="success" id="startLobbyBtn">Abrir lobby</button>
-                <button class="warn" id="revealBtn">Revelar resposta</button>
-                <button class="danger" id="finishBtn">Finalizar</button>
-                <button class="secondary" id="resetBtn">Resetar</button>
-              </div>
+  <button class="success" id="startGameBtn">Iniciar jogo</button>
+  <button class="secondary" id="startLobbyBtn">Abrir lobby</button>
+  <button class="warn" id="revealBtn">Revelar resposta</button>
+  <button class="danger" id="finishBtn">Finalizar</button>
+  <button class="secondary" id="resetBtn">Resetar</button>
+</div>
             </div>
             <div class="row" id="questionButtons"></div>
           </div>
@@ -891,6 +893,10 @@ app.get('/admin', (req, res) => {
     document.getElementById('revealBtn').onclick = () => post('/api/admin/game/reveal');
     document.getElementById('finishBtn').onclick = () => post('/api/admin/game/finish');
     document.getElementById('resetBtn').onclick = () => post('/api/admin/game/reset');
+    document.getElementById('startGameBtn').onclick = async () => {
+  await post('/api/admin/game/start');
+  await post('/api/admin/game/question/0');
+};
 
     socket.on('public:state', (state) => {
       document.getElementById('gameStatus').textContent = 'Status: ' + state.game.status;
